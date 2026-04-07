@@ -1,255 +1,104 @@
-# 🛸 DroneTrack-CV — Real-Time Aerial Multi-Object Tracking
+# 🛸 DroneTrack-CV
 
-<p align="center">
-  <img src="assets/banner.png" alt="DroneTrack-CV Banner" width="800"/>
-</p>
+### *Once upon a time, a drone looked down at the world and wanted to understand what it saw...*
 
-<p align="center">
-  <strong>Detect and track vehicles, pedestrians & anomalies from aerial drone video feeds</strong><br>
-  <em>Optimized for Sky-Drones AIRLink edge deployment</em>
-</p>
 
-<p align="center">
-  <a href="#demo">View Demo</a> •
-  <a href="#quickstart">Quickstart</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#results">Results</a>
-</p>
+<img width="600" height="426" alt="image" src="https://github.com/user-attachments/assets/71fe8b22-f5d8-4b61-b47c-a5d15bf9375b" />
+
 
 ---
 
-## 🎯 Overview
+## 🎬 The Story
 
-DroneTrack-CV is an end-to-end computer vision pipeline for **real-time multi-object detection and tracking** from aerial/drone camera feeds. It combines **YOLOv8** for detection with **DeepSORT** for persistent tracking, producing annotated video with bounding boxes, track IDs, trajectory trails, and a live spatial minimap.
+Imagine you're a drone, flying high above a busy city. You can see tiny cars moving, people walking, cyclists pedaling. But you're just watching — you can't *understand* what you see.
 
-Built for [Sky-Drones](https://sky-drones.com/) use cases: surveying, security, safety, and infrastructure inspection.
+**DroneTrack-CV gives drones eyes that think.**
 
-### Key Features
-
-- **Real-time inference** at 30+ FPS on GPU (≤35ms/frame on RTX 3060)
-- **Multi-class detection**: vehicles, pedestrians, cyclists, anomalies
-- **Persistent tracking** with DeepSORT — maintains identity across occlusions
-- **Trajectory visualization** with color-coded trails per track ID
-- **Spatial minimap** overlay showing all tracked objects in bird's-eye view
-- **Telemetry HUD** with FPS, altitude, heading, object count
-- **Zone-based alerting** for restricted area intrusion detection
-- **CSV/JSON export** of all tracks with timestamps and bounding boxes
-- **ONNX export** ready for AIRLink embedded deployment
+It watches a live video feed from above, spots every vehicle, person, and cyclist in the frame, gives each one a name tag (like a little ID badge), and follows them around — even if they hide behind a tree for a moment and come back.
 
 ---
 
-## 📹 Demo
-
-### Video Output
-
-https://github.com/user-attachments/assets/demo-placeholder
-
-### Interactive Web Demo
-
-Open `demo/dronetrack-cv.html` in your browser for an interactive simulation of the tracking dashboard.
-
----
-
-## 🏗️ Architecture
+## 🧩 How It Works (The Simple Version)
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    INPUT VIDEO FRAME                     │
-└─────────────┬───────────────────────────────────────────┘
-              │
-              ▼
-┌─────────────────────────┐
-│  YOLOv8n Detection      │  ← ultralytics (ONNX / PyTorch)
-│  - Vehicle, Person,     │
-│    Cyclist, Anomaly      │
-│  - Confidence filtering  │
-└─────────────┬───────────┘
-              │ detections [x1,y1,x2,y2,conf,cls]
-              ▼
-┌─────────────────────────┐
-│  DeepSORT Tracker       │  ← deep_sort_realtime
-│  - Kalman prediction    │
-│  - Hungarian matching   │
-│  - Re-ID embeddings     │
-│  - Track management     │
-└─────────────┬───────────┘
-              │ tracks [id,bbox,cls,age]
-              ▼
-┌─────────────────────────────────────────────────────────┐
-│  VISUALIZATION & ANALYTICS ENGINE                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
-│  │ BBox     │ │Trajectory│ │ Minimap  │ │ Telemetry  │ │
-│  │ Renderer │ │ Drawer   │ │ Overlay  │ │ HUD        │ │
-│  └──────────┘ └──────────┘ └──────────┘ └────────────┘ │
-└─────────────┬───────────────────────────────────────────┘
-              │
-              ▼
-┌─────────────────────────────────────────────────────────┐
-│  OUTPUT: Annotated Video + CSV Tracks + JSON Report      │
-└─────────────────────────────────────────────────────────┘
+📷 Drone camera sees the world
+        ↓
+🔍 YOLOv8 says "that's a car, that's a person!"
+        ↓
+🏷️ DeepSORT says "that car is #7, I saw it last frame too"
+        ↓
+🎨 We draw pretty boxes and trails on the video
+        ↓
+📹 You get a cool annotated video + data export
 ```
+
+That's it. Four steps. Camera → Detect → Track → Draw.
 
 ---
 
-## ⚡ Quickstart
+## 🚀 Try It Yourself
 
-### Prerequisites
-
-- Python 3.9+
-- CUDA 11.8+ (optional, for GPU acceleration)
-
-### Installation
-
+**Step 1:** Install the ingredients
 ```bash
-git clone https://github.com/SamSon1402/DroneTrack-CV.git
-cd DroneTrack-CV
 pip install -r requirements.txt
 ```
 
-### Run on a Video File
-
+**Step 2:** Feed it a video
 ```bash
-# Basic usage — processes video and saves annotated output
-python main.py --source path/to/drone_video.mp4
-
-# With all features enabled
-python main.py \
-    --source path/to/drone_video.mp4 \
-    --output output/tracked_video.mp4 \
-    --model yolov8n.pt \
-    --conf-thresh 0.35 \
-    --track-thresh 0.4 \
-    --show-trails \
-    --show-minimap \
-    --show-hud \
-    --export-csv \
-    --export-json \
-    --device cuda:0
-
-# Run on webcam (for testing)
-python main.py --source 0 --show-hud --show-trails
-
-# Run on RTSP stream (drone feed)
-python main.py --source rtsp://192.168.1.100:8554/live --show-hud
+python main.py --source your_drone_video.mp4 --show-trails --show-minimap --show-hud
 ```
 
-### Run with Docker
+**Step 3:** Watch the magic happen ✨
 
-```bash
-docker build -t dronetrack-cv .
-docker run --gpus all -v $(pwd)/output:/app/output dronetrack-cv \
-    --source /app/assets/sample.mp4
-```
+A window pops up showing your drone video with colored boxes around every object, little trails showing where they've been, and a minimap in the corner like a video game.
 
 ---
 
-## 📁 Project Structure
+## 🎨 What You'll See
+
+- 🟦 **Cyan boxes** → Vehicles (cars, trucks, buses)
+- 🟧 **Orange boxes** → People walking around
+- 🟨 **Yellow boxes** → Cyclists
+- 🟥 **Red boxes** → Something unusual (anomaly!)
+- 🟣 **Colorful trails** → Where each object has been moving
+- 🗺️ **Minimap** → Bird's-eye view of all tracked objects
+
+---
+
+## 📂 What's Inside
 
 ```
 DroneTrack-CV/
-├── main.py                 # CLI entry point
-├── requirements.txt        # Python dependencies
-├── Dockerfile              # Container deployment
-├── configs/
-│   └── default.yaml        # Default configuration
+├── main.py              ← Start here. This runs everything.
 ├── src/
-│   ├── __init__.py
-│   ├── detector.py         # YOLOv8 detection wrapper
-│   ├── tracker.py          # DeepSORT tracking wrapper
-│   ├── pipeline.py         # End-to-end detection+tracking pipeline
-│   ├── visualizer.py       # Bounding box, trail, minimap rendering
-│   ├── hud.py              # Telemetry HUD overlay
-│   ├── zone_alert.py       # Restricted zone intrusion detection
-│   ├── exporter.py         # CSV/JSON track export
-│   └── utils.py            # Color maps, geometry helpers
-├── tests/
-│   ├── test_detector.py
-│   ├── test_tracker.py
-│   └── test_pipeline.py
+│   ├── detector.py      ← The "eyes" — finds objects in each frame
+│   ├── tracker.py       ← The "memory" — remembers who is who
+│   ├── visualizer.py    ← The "artist" — draws boxes and trails
+│   ├── hud.py           ← The "dashboard" — shows FPS and stats
+│   ├── zone_alert.py    ← The "guard" — alerts if someone enters a zone
+│   ├── exporter.py      ← The "reporter" — saves everything to CSV/JSON
+│   └── pipeline.py      ← The "conductor" — connects all the pieces
+├── configs/
+│   └── default.yaml     ← Settings you can tweak
 ├── demo/
-│   └── dronetrack-cv.html  # Interactive web demo
-├── assets/
-│   └── banner.png
-└── output/                 # Default output directory
+│   └── dronetrack-cv.html  ← Pretty interactive demo (open in browser!)
+└── tests/               ← Making sure nothing is broken
 ```
 
 ---
 
-## ⚙️ Configuration
+## 🎯 Built For
 
-All parameters can be set via CLI flags or `configs/default.yaml`:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--source` | required | Video path, webcam index, or RTSP URL |
-| `--output` | `output/tracked.mp4` | Output video path |
-| `--model` | `yolov8n.pt` | YOLOv8 model (n/s/m/l/x) |
-| `--conf-thresh` | `0.35` | Detection confidence threshold |
-| `--iou-thresh` | `0.45` | NMS IoU threshold |
-| `--track-thresh` | `0.4` | DeepSORT track confirmation threshold |
-| `--max-age` | `30` | Frames to keep lost track alive |
-| `--show-trails` | `False` | Draw trajectory trails |
-| `--trail-length` | `40` | Max trail points per track |
-| `--show-minimap` | `False` | Show bird's-eye minimap overlay |
-| `--show-hud` | `False` | Show telemetry HUD |
-| `--zone-file` | `None` | JSON file defining restricted zones |
-| `--export-csv` | `False` | Export tracks to CSV |
-| `--export-json` | `False` | Export summary to JSON |
-| `--device` | `auto` | `cuda:0`, `cpu`, or `auto` |
+This project is designed for [Sky-Drones](https://sky-drones.com/) — a company that builds smart drone systems for surveying, security, and inspection. DroneTrack-CV is the computer vision brain that makes their drones *see and understand*.
 
 ---
 
-## 📊 Results
+## 🌟 The End
 
-### Performance Benchmarks
-
-| Model | Input Size | Device | FPS | mAP@0.5 | Params |
-|-------|-----------|--------|-----|---------|--------|
-| YOLOv8n | 640×640 | RTX 3060 | 38 | 0.912 | 6.3M |
-| YOLOv8s | 640×640 | RTX 3060 | 28 | 0.934 | 21.5M |
-| YOLOv8n | 640×640 | Jetson Orin | 22 | 0.912 | 6.3M |
-| YOLOv8n (ONNX) | 640×640 | AIRLink | 18 | 0.908 | 6.3M |
-
-### Tracking Metrics (MOT Challenge)
-
-| Metric | Value |
-|--------|-------|
-| MOTA | 76.2% |
-| IDF1 | 81.4% |
-| ID Switches | 23 |
-| Track Fragmentation | 0.8% |
-
----
-
-## 🚀 Edge Deployment (AIRLink)
-
-Export the model for Sky-Drones AIRLink deployment:
-
-```bash
-# Export to ONNX
-python -c "from src.detector import DroneDetector; DroneDetector('yolov8n.pt').export_onnx('dronetrack.onnx')"
-
-# Export to TensorRT (on AIRLink device)
-trtexec --onnx=dronetrack.onnx --saveEngine=dronetrack.engine --fp16
-```
-
----
-
-## 📜 License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgements
-
-- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
-- [DeepSORT](https://github.com/levan92/deep_sort_realtime)
-- [Sky-Drones Technologies](https://sky-drones.com/)
-- [VisDrone Dataset](https://github.com/VisDrone/VisDrone-Dataset)
+And so, the little drone flew happily ever after — no longer just watching the world, but truly *seeing* it.
 
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/SamSon1402">Sameer M.</a> for <a href="https://sky-drones.com/">Sky-Drones Technologies</a>
+  Built with ❤️ by <a href="https://github.com/SamSon1402">Sameer</a>
 </p>
