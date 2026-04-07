@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DroneTrack-CV — Real-Time Aerial Object Detection | Sky-Drones</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #06b6d4;
+            --primary-glow: rgba(6, 182, 212, 0.4);
+            --secondary: #f97316;
+            --accent: #a855f7;
+            --warning: #eab308;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --bg-dark: #030712;
+            --bg-card: #0c1222;
+            --bg-elevated: #161f33;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #1e3048;
+            --sky-gradient: linear-gradient(135deg, #06b6d4 0%, #f97316 50%, #a855f7 100%);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Sora', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 20% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(249, 115, 22, 0.06) 0%, transparent 50%);
+        }
+        .header {
+            background: linear-gradient(180deg, rgba(6,182,212,0.05) 0%, transparent 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+        .header-content { max-width: 1800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo-icon {
+            width: 46px; height: 46px;
+            background: var(--sky-gradient);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; position: relative;
+        }
+        .logo-icon::after {
+            content: ''; position: absolute; inset: -2px;
+            background: var(--sky-gradient); border-radius: 14px;
+            z-index: -1; opacity: 0.5; filter: blur(8px);
+        }
+        .logo-text { font-size: 1.5rem; font-weight: 800; background: var(--sky-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-subtitle { font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 3px; font-weight: 500; }
+        .header-badges { display: flex; gap: 0.4rem; }
+        .badge { background: var(--bg-card); border: 1px solid var(--border); padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.65rem; color: var(--text-secondary); font-family: 'Fira Code', monospace; }
+        .badge.live { background: rgba(6,182,212,0.15); border-color: var(--primary); color: var(--primary); }
+        .badge.live::before { content: ''; display: inline-block; width: 6px; height: 6px; background: var(--primary); border-radius: 50%; margin-right: 5px; animation: livePulse 1.5s ease-in-out infinite; }
+        @keyframes livePulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 var(--primary-glow)} 50%{opacity:.6;box-shadow:0 0 0 8px transparent} }
+        .main { max-width: 1800px; margin: 0 auto; padding: 1.5rem 2rem; }
+        .hero { text-align: center; margin-bottom: 1.5rem; }
+        .hero h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 0.4rem; background: var(--sky-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { color: var(--text-secondary); font-size: 0.95rem; }
+        .workspace { display: grid; grid-template-columns: 1fr 400px; gap: 1.25rem; }
+        @media(max-width:1300px){ .workspace{grid-template-columns:1fr} }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+        .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, rgba(22,31,51,0.6) 0%, transparent 100%); }
+        .card-title { font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .card-body { padding: 1.25rem; }
+
+        /* Video */
+        .video-container { position: relative; background: var(--bg-dark); border-radius: 12px; overflow: hidden; aspect-ratio: 16/9; margin-bottom: 1rem; cursor: crosshair; }
+        .video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.85) contrast(1.05) saturate(0.9); }
+        .video-overlay { position: absolute; inset: 0; pointer-events: none; }
+
+        /* Tracking boxes */
+        .track-box { position: absolute; border: 2px solid; border-radius: 3px; transition: all 0.15s linear; }
+        .track-box .track-label { position: absolute; top: -22px; left: 0; padding: 2px 8px; border-radius: 3px; font-size: 0.6rem; font-weight: 600; font-family: 'Fira Code', monospace; white-space: nowrap; color: #fff; }
+        .track-box .track-trail { position: absolute; bottom: -8px; left: 50%; width: 4px; height: 4px; border-radius: 50%; transform: translateX(-50%); opacity: 0.5; }
+        .track-box.vehicle { border-color: var(--primary); box-shadow: 0 0 15px rgba(6,182,212,0.3); }
+        .track-box.vehicle .track-label { background: var(--primary); }
+        .track-box.vehicle .track-trail { background: var(--primary); }
+        .track-box.person { border-color: var(--secondary); box-shadow: 0 0 15px rgba(249,115,22,0.3); }
+        .track-box.person .track-label { background: var(--secondary); }
+        .track-box.person .track-trail { background: var(--secondary); }
+        .track-box.anomaly { border-color: var(--danger); box-shadow: 0 0 20px rgba(239,68,68,0.4); animation: alertBlink 0.8s ease-in-out infinite; }
+        .track-box.anomaly .track-label { background: var(--danger); }
+        @keyframes alertBlink { 50%{box-shadow:0 0 30px rgba(239,68,68,0.7)} }
+
+        /* HUD overlay */
+        .hud-top { position: absolute; top: 0; left: 0; right: 0; padding: 0.75rem 1rem; display: flex; justify-content: space-between; background: linear-gradient(rgba(0,0,0,0.7), transparent); pointer-events: none; }
+        .hud-item { font-family: 'Fira Code', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.7); }
+        .hud-item span { color: var(--primary); font-weight: 600; }
+
+        .stats-bar { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.9)); padding: 2rem 1rem 1rem; display: flex; justify-content: space-between; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; font-family: 'Fira Code', monospace; }
+        .stat-value.fps{color:var(--primary)} .stat-value.tracked{color:var(--secondary)} .stat-value.alerts{color:var(--danger)} .stat-value.alt{color:var(--accent)}
+        .stat-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Controls */
+        .controls { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .control-btn { flex: 1; padding: 0.75rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-family: 'Sora'; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .control-btn:hover { border-color: var(--primary); background: rgba(6,182,212,0.1); }
+        .control-btn.active { border-color: var(--primary); background: rgba(6,182,212,0.2); color: var(--primary); }
+        .control-btn.danger:hover { border-color: var(--danger); background: rgba(239,68,68,0.1); }
+
+        /* Minimap */
+        .minimap-section { background: var(--bg-elevated); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+        .minimap { width: 100%; aspect-ratio: 1; background: var(--bg-dark); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--border); }
+        .minimap-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(6,182,212,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.08) 1px, transparent 1px); background-size: 20% 20%; }
+        .minimap-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; transition: all 0.3s linear; }
+        .minimap-dot.vehicle { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+        .minimap-dot.person { background: var(--secondary); box-shadow: 0 0 6px var(--secondary); }
+        .minimap-dot.anomaly { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+        .minimap-drone { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 12px var(--accent); }
+        .minimap-drone::after { content:''; position:absolute; inset:-6px; border:1px solid rgba(168,85,247,0.3); border-radius:50%; animation:droneRing 2s infinite; }
+        @keyframes droneRing { 0%{transform:scale(1);opacity:1} 100%{transform:scale(2.5);opacity:0} }
+        .minimap-label { position: absolute; bottom: 6px; right: 8px; font-size: 0.55rem; font-family: 'Fira Code', monospace; color: var(--text-muted); }
+
+        /* Sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+        .model-info { background: var(--bg-elevated); border-radius: 12px; padding: 1rem; }
+        .model-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+        .model-icon { width: 48px; height: 48px; background: var(--sky-gradient); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+        .model-name { font-size: 1rem; font-weight: 700; }
+        .model-version { font-size: 0.7rem; color: var(--text-muted); font-family: 'Fira Code', monospace; }
+        .model-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: 0.5rem; }
+        .model-stat { background: var(--bg-dark); border-radius: 8px; padding: 0.75rem; text-align: center; }
+        .model-stat-value { font-size: 1.2rem; font-weight: 700; font-family: 'Fira Code', monospace; color: var(--primary); }
+        .model-stat-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Tracking log */
+        .track-log { max-height: 260px; overflow-y: auto; }
+        .log-item { display: flex; gap: 0.75rem; padding: 0.7rem; background: var(--bg-elevated); border-radius: 10px; margin-bottom: 0.4rem; border-left: 3px solid var(--primary); animation: slideIn 0.3s ease; }
+        .log-item.person { border-left-color: var(--secondary); }
+        .log-item.anomaly { border-left-color: var(--danger); }
+        @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+        .log-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; }
+        .log-item .log-icon { background: rgba(6,182,212,0.2); }
+        .log-item.person .log-icon { background: rgba(249,115,22,0.2); }
+        .log-item.anomaly .log-icon { background: rgba(239,68,68,0.2); }
+        .log-content { flex: 1; }
+        .log-title { font-size: 0.78rem; font-weight: 600; margin-bottom: 0.1rem; }
+        .log-meta { font-size: 0.62rem; color: var(--text-muted); font-family: 'Fira Code', monospace; }
+        .log-confidence { font-size: 0.72rem; font-weight: 600; font-family: 'Fira Code', monospace; color: var(--primary); }
+        .log-item.person .log-confidence { color: var(--secondary); }
+        .log-item.anomaly .log-confidence { color: var(--danger); }
+
+        /* Class distribution */
+        .class-dist { display: flex; flex-direction: column; gap: 0.5rem; }
+        .class-row { display: flex; align-items: center; gap: 0.75rem; }
+        .class-label { font-size: 0.72rem; font-weight: 600; width: 80px; }
+        .class-bar-bg { flex: 1; height: 8px; background: var(--bg-dark); border-radius: 4px; overflow: hidden; }
+        .class-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .class-count { font-size: 0.7rem; font-family: 'Fira Code', monospace; color: var(--text-muted); width: 30px; text-align: right; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem 1.25rem; display: flex; align-items: center; gap: 0.6rem; box-shadow: 0 15px 50px rgba(0,0,0,0.6); transform: translateY(100px); opacity: 0; transition: all 0.4s cubic-bezier(0.4,0,0.2,1); z-index: 1000; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-icon { font-size: 1.3rem; }
+        .toast-title { font-size: 0.85rem; font-weight: 600; }
+        .toast-message { font-size: 0.7rem; color: var(--text-muted); }
+
+        /* Processing Overlay */
+        .processing-overlay { position: fixed; inset: 0; background: rgba(3,7,18,0.97); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        .processing-overlay.active { display: flex; }
+        .drone-anim { width: 80px; height: 80px; border: 3px solid var(--primary); border-radius: 50%; position: relative; margin-bottom: 2rem; animation: droneSpin 2s linear infinite; }
+        .drone-anim::before { content: '🛸'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 2rem; animation: droneSpin 2s linear infinite reverse; }
+        @keyframes droneSpin { to{transform:rotate(360deg)} }
+        .processing-text { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .processing-stage { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; font-family: 'Fira Code', monospace; }
+        .processing-progress { width: 280px; height: 5px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+        .processing-bar { height: 100%; background: var(--sky-gradient); width: 0%; transition: width 0.3s; }
+
+        ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:var(--bg-dark)} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">🛸</div>
+                <div>
+                    <div class="logo-text">DroneTrack-CV</div>
+                    <div class="logo-subtitle">Sky-Drones Aerial Detection</div>
+                </div>
+            </div>
+            <div class="header-badges">
+                <span class="badge live">● Live Feed</span>
+                <span class="badge">YOLOv8 + DeepSORT</span>
+                <span class="badge">Embedded AIRLink</span>
+                <span class="badge">&lt;35ms Inference</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="hero">
+            <h1>🎯 Real-Time Aerial Multi-Object Tracking</h1>
+            <p>Detect vehicles, people & infrastructure anomalies from live drone feeds — optimized for AIRLink edge deployment</p>
+        </div>
+
+        <div class="workspace">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📡 Live Drone Camera</h3>
+                    <span style="font-size:0.7rem;color:var(--text-muted);font-family:'Fira Code'">4K • 30fps • H.265</span>
+                </div>
+                <div class="card-body">
+                    <div class="video-container" id="videoContainer">
+                        <img class="video-feed" src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1200" alt="Aerial Feed">
+                        <div class="hud-top">
+                            <div class="hud-item">ALT: <span id="hudAlt">120m</span></div>
+                            <div class="hud-item">GPS: <span>48.8566°N 2.3522°E</span></div>
+                            <div class="hud-item">HEADING: <span id="hudHeading">045°</span></div>
+                            <div class="hud-item">BATTERY: <span id="hudBattery">87%</span></div>
+                        </div>
+                        <div class="video-overlay" id="videoOverlay"></div>
+                        <div class="stats-bar">
+                            <div class="stat-item"><div class="stat-value fps" id="fpsValue">0</div><div class="stat-label">FPS</div></div>
+                            <div class="stat-item"><div class="stat-value tracked" id="trackedValue">0</div><div class="stat-label">Tracked</div></div>
+                            <div class="stat-item"><div class="stat-value alerts" id="alertsValue">0</div><div class="stat-label">Alerts</div></div>
+                            <div class="stat-item"><div class="stat-value alt" id="flightTime">00:00</div><div class="stat-label">Flight Time</div></div>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="control-btn" id="startBtn" onclick="toggleTracking()">
+                            <span id="startIcon">▶️</span><span id="startText">Start Tracking</span>
+                        </button>
+                        <button class="control-btn" onclick="resetTracking()">🔄 Reset</button>
+                        <button class="control-btn" onclick="captureSnapshot()">📸 Snapshot</button>
+                        <button class="control-btn danger" onclick="triggerAnomaly()">🚨 Inject Anomaly</button>
+                    </div>
+
+                    <div class="minimap-section">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+                            <span style="font-size:0.8rem;font-weight:600">🗺️ Spatial Map</span>
+                            <span style="font-size:0.65rem;color:var(--text-muted);font-family:'Fira Code'" id="objectCount">0 objects</span>
+                        </div>
+                        <div class="minimap" id="minimap">
+                            <div class="minimap-grid"></div>
+                            <div class="minimap-drone"></div>
+                            <div class="minimap-label">100m radius</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">🧠 Model Pipeline</h3></div>
+                    <div class="card-body">
+                        <div class="model-info">
+                            <div class="model-header">
+                                <div class="model-icon">🎯</div>
+                                <div>
+                                    <div class="model-name">DroneTrack-CV</div>
+                                    <div class="model-version">YOLOv8n + DeepSORT • ONNX</div>
+                                </div>
+                            </div>
+                            <div class="model-stats">
+                                <div class="model-stat"><div class="model-stat-value" id="inferenceTime">—</div><div class="model-stat-label">Inference (ms)</div></div>
+                                <div class="model-stat"><div class="model-stat-value">91.2%</div><div class="model-stat-label">mAP@0.5</div></div>
+                                <div class="model-stat"><div class="model-stat-value">640²</div><div class="model-stat-label">Input Res</div></div>
+                                <div class="model-stat"><div class="model-stat-value">6.3M</div><div class="model-stat-label">Parameters</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">📊 Class Distribution</h3></div>
+                    <div class="card-body">
+                        <div class="class-dist" id="classDist">
+                            <div class="class-row"><span class="class-label" style="color:var(--primary)">Vehicle</span><div class="class-bar-bg"><div class="class-bar" id="barVehicle" style="width:0%;background:var(--primary)"></div></div><span class="class-count" id="cntVehicle">0</span></div>
+                            <div class="class-row"><span class="class-label" style="color:var(--secondary)">Person</span><div class="class-bar-bg"><div class="class-bar" id="barPerson" style="width:0%;background:var(--secondary)"></div></div><span class="class-count" id="cntPerson">0</span></div>
+                            <div class="class-row"><span class="class-label" style="color:var(--warning)">Cyclist</span><div class="class-bar-bg"><div class="class-bar" id="barCyclist" style="width:0%;background:var(--warning)"></div></div><span class="class-count" id="cntCyclist">0</span></div>
+                            <div class="class-row"><span class="class-label" style="color:var(--danger)">Anomaly</span><div class="class-bar-bg"><div class="class-bar" id="barAnomaly" style="width:0%;background:var(--danger)"></div></div><span class="class-count" id="cntAnomaly">0</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📋 Tracking Log</h3>
+                        <span style="font-size:0.65rem;color:var(--text-muted)" id="logCount">0 events</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="track-log" id="trackLog">
+                            <div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:1.5rem;">Start tracking to see events</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="drone-anim"></div>
+        <div class="processing-text">Initializing DroneTrack-CV...</div>
+        <div class="processing-stage" id="processingStage">Loading YOLOv8 weights...</div>
+        <div class="processing-progress"><div class="processing-bar" id="processingBar"></div></div>
+    </div>
+
+    <div class="toast" id="toast">
+        <span class="toast-icon">✅</span>
+        <div><div class="toast-title" id="toastTitle">Success!</div><div class="toast-message" id="toastMessage">Tracking started</div></div>
+    </div>
+
+    <script>
+        let isTracking = false, trackInterval = null, timeInterval = null;
+        let totalTracked = 0, alertCount = 0, flightSec = 0;
+        let classCounts = { vehicle: 0, person: 0, cyclist: 0, anomaly: 0 };
+        let logEntries = [], trackIdCounter = 1;
+        const objectTypes = [
+            { cls: 'vehicle', icon: '🚗', names: ['Sedan','SUV','Truck','Van','Bus'] },
+            { cls: 'person', icon: '🚶', names: ['Pedestrian','Runner','Worker'] },
+            { cls: 'vehicle', icon: '🚲', names: ['Cyclist'], countKey: 'cyclist' },
+        ];
+
+        function toggleTracking() {
+            if (!isTracking) startTracking(); else stopTracking();
+        }
+
+        function startTracking() {
+            const overlay = document.getElementById('processingOverlay');
+            const bar = document.getElementById('processingBar');
+            const stage = document.getElementById('processingStage');
+            overlay.classList.add('active');
+            const stages = ['Loading YOLOv8 weights...','Initializing DeepSORT tracker...','Calibrating drone gimbal...','Connecting to AIRLink...','Starting inference pipeline...'];
+            let progress = 0, si = 0;
+            const iv = setInterval(() => {
+                progress += Math.random() * 20 + 10;
+                if (progress > 100) progress = 100;
+                bar.style.width = progress + '%';
+                const ns = Math.floor((progress/100)*stages.length);
+                if (ns !== si && ns < stages.length) { si = ns; stage.textContent = stages[si]; }
+                if (progress >= 100) { clearInterval(iv); setTimeout(() => { overlay.classList.remove('active'); beginTracking(); }, 300); }
+            }, 80);
+        }
+
+        function beginTracking() {
+            isTracking = true;
+            document.getElementById('startIcon').textContent = '⏸️';
+            document.getElementById('startText').textContent = 'Pause Tracking';
+            document.getElementById('startBtn').classList.add('active');
+            setInterval(() => { document.getElementById('fpsValue').textContent = Math.floor(28 + Math.random() * 7); }, 1000);
+            trackInterval = setInterval(() => {
+                if (Math.random() > 0.5) addTrackedObject();
+                document.getElementById('inferenceTime').textContent = Math.floor(18 + Math.random() * 15);
+                document.getElementById('hudHeading').textContent = Math.floor(Math.random()*360) + '°';
+                document.getElementById('hudAlt').textContent = Math.floor(80 + Math.random()*60) + 'm';
+            }, 400);
+            timeInterval = setInterval(() => { flightSec++; const m = Math.floor(flightSec/60), s = flightSec%60; document.getElementById('flightTime').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }, 1000);
+            showToast('Tracking Active', 'Real-time detection running on AIRLink');
+        }
+
+        function stopTracking() {
+            isTracking = false;
+            document.getElementById('startIcon').textContent = '▶️';
+            document.getElementById('startText').textContent = 'Resume Tracking';
+            document.getElementById('startBtn').classList.remove('active');
+            if (trackInterval) clearInterval(trackInterval);
+            if (timeInterval) clearInterval(timeInterval);
+            showToast('Tracking Paused', 'Detection suspended');
+        }
+
+        function addTrackedObject(forceAnomaly) {
+            const overlay = document.getElementById('videoOverlay');
+            const minimap = document.getElementById('minimap');
+            let type, name, countKey;
+            if (forceAnomaly) {
+                type = 'anomaly'; name = 'Suspicious Activity'; countKey = 'anomaly';
+            } else {
+                const t = objectTypes[Math.floor(Math.random()*objectTypes.length)];
+                type = t.countKey === 'cyclist' ? 'vehicle' : t.cls;
+                countKey = t.countKey || t.cls;
+                name = t.names[Math.floor(Math.random()*t.names.length)];
+            }
+            const confidence = (78 + Math.random() * 21).toFixed(1);
+            const id = trackIdCounter++;
+            const x = 5 + Math.random()*75, y = 8 + Math.random()*60;
+            const w = 40 + Math.random()*50, h = 30 + Math.random()*40;
+
+            // Bounding box
+            const box = document.createElement('div');
+            box.className = `track-box ${forceAnomaly ? 'anomaly' : type}`;
+            box.style.cssText = `left:${x}%;top:${y}%;width:${w}px;height:${h}px`;
+            box.innerHTML = `<div class="track-label">#${id} ${name} ${confidence}%</div>`;
+            overlay.appendChild(box);
+
+            // Minimap dot
+            const dot = document.createElement('div');
+            dot.className = `minimap-dot ${forceAnomaly ? 'anomaly' : type}`;
+            dot.style.cssText = `left:${10+Math.random()*80}%;top:${10+Math.random()*80}%`;
+            minimap.appendChild(dot);
+
+            setTimeout(() => { box.remove(); dot.remove(); }, 2500 + Math.random()*1500);
+
+            totalTracked++;
+            classCounts[countKey]++;
+            if (forceAnomaly) alertCount++;
+            document.getElementById('trackedValue').textContent = totalTracked;
+            document.getElementById('alertsValue').textContent = alertCount;
+            updateClassBars();
+            addLogEntry(forceAnomaly ? 'anomaly' : (countKey === 'cyclist' ? 'person' : type), name, confidence, id);
+        }
+
+        function updateClassBars() {
+            const max = Math.max(...Object.values(classCounts), 1);
+            ['vehicle','person','cyclist','anomaly'].forEach(k => {
+                document.getElementById('bar' + k.charAt(0).toUpperCase()+k.slice(1)).style.width = (classCounts[k]/max*100)+'%';
+                document.getElementById('cnt' + k.charAt(0).toUpperCase()+k.slice(1)).textContent = classCounts[k];
+            });
+            document.getElementById('objectCount').textContent = totalTracked + ' objects';
+        }
+
+        function addLogEntry(type, name, conf, id) {
+            const log = document.getElementById('trackLog');
+            const icons = { vehicle: '🚗', person: '🚶', anomaly: '⚠️' };
+            const m = Math.floor(flightSec/60), s = flightSec%60;
+            const entry = document.createElement('div');
+            entry.className = `log-item ${type}`;
+            entry.innerHTML = `<div class="log-icon">${icons[type]||'📦'}</div><div class="log-content"><div class="log-title">#${id} ${name}</div><div class="log-meta">${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} • Track ID ${id}</div></div><div class="log-confidence">${conf}%</div>`;
+            if (log.firstChild && log.firstChild.style) log.innerHTML = '';
+            log.insertBefore(entry, log.firstChild);
+            logEntries.unshift(entry);
+            if (logEntries.length > 25) { logEntries.pop().remove(); }
+            document.getElementById('logCount').textContent = logEntries.length + ' events';
+        }
+
+        function resetTracking() {
+            stopTracking(); totalTracked=0; alertCount=0; flightSec=0; trackIdCounter=1; logEntries=[];
+            classCounts={vehicle:0,person:0,cyclist:0,anomaly:0};
+            document.getElementById('trackedValue').textContent='0';
+            document.getElementById('alertsValue').textContent='0';
+            document.getElementById('fpsValue').textContent='0';
+            document.getElementById('flightTime').textContent='00:00';
+            document.getElementById('inferenceTime').textContent='—';
+            document.getElementById('videoOverlay').innerHTML='';
+            document.getElementById('trackLog').innerHTML='<div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:1.5rem;">Start tracking to see events</div>';
+            document.getElementById('logCount').textContent='0 events';
+            document.getElementById('objectCount').textContent='0 objects';
+            updateClassBars();
+            showToast('Reset Complete','All tracking data cleared');
+        }
+
+        function captureSnapshot() { showToast('📸 Snapshot Saved','Frame captured at flight time ' + document.getElementById('flightTime').textContent); }
+        function triggerAnomaly() { if(isTracking) addTrackedObject(true); else showToast('⚠️','Start tracking first'); }
+
+        function showToast(title, message) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMessage').textContent = message;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>

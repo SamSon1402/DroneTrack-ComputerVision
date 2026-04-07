@@ -1,0 +1,54 @@
+# DroneTrack-CV Configuration
+# ============================
+
+# Detection
+model: "yolov8n.pt"
+conf_thresh: 0.35
+iou_thresh: 0.45
+input_size: 640
+classes: [0, 1, 2, 3, 5, 7]  # COCO: person, bicycle, car, motorcycle, bus, truck
+
+# Class mapping (COCO → DroneTrack)
+class_map:
+  0: "Person"
+  1: "Cyclist"
+  2: "Vehicle"
+  3: "Vehicle"
+  5: "Vehicle"
+  7: "Vehicle"
+
+# Tracking (DeepSORT)
+track_thresh: 0.4
+max_age: 30
+n_init: 3
+max_iou_distance: 0.7
+max_cosine_distance: 0.3
+nn_budget: 100
+
+# Visualization
+show_trails: true
+trail_length: 40
+trail_thickness: 2
+show_minimap: true
+minimap_size: 200
+minimap_alpha: 0.7
+show_hud: true
+bbox_thickness: 2
+font_scale: 0.55
+
+# Colors (BGR) per class
+colors:
+  Vehicle: [212, 182, 6]      # Cyan
+  Person: [22, 115, 249]      # Orange
+  Cyclist: [8, 171, 234]      # Yellow
+  Anomaly: [68, 68, 239]      # Red
+
+# Zone alerting
+zone_file: null
+
+# Export
+export_csv: false
+export_json: false
+
+# Device
+device: "auto"
