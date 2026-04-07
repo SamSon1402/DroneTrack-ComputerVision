@@ -101,5 +101,5 @@ And so, the little drone flew happily ever after — no longer just watching the
 ---
 
 <p align="center">
-  Built with ❤️ by <a href="https://github.com/SamSon1402">Sameer</a>
+  Built  by <a href="https://github.com/SamSon1402">Sameer</a>
 </p>
