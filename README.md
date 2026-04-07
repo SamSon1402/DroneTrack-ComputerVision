@@ -3,7 +3,8 @@
 ### *Once upon a time, a drone looked down at the world and wanted to understand what it saw...*
 
 
-<img width="600" height="426" alt="image" src="https://github.com/user-attachments/assets/71fe8b22-f5d8-4b61-b47c-a5d15bf9375b" />
+![m210_stereo_pt_cloud-eeed34d8dc](https://github.com/user-attachments/assets/ad96c97d-c359-409c-af64-cb35150238ac)
+
 
 
 ---
